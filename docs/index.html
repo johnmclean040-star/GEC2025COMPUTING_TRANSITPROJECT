@@ -29,7 +29,6 @@
                 <h3>GEC2025 C Program Terminal</h3>
                 <div class="terminal-buttons">
                     <button id="startBtn" class="btn-primary">Start</button>
-                    <button id="nativeBtn" class="btn-primary">Run Native</button>
                     <button id="restartBtn" class="btn-secondary">Restart</button>
                 </div>
             </div>
@@ -249,19 +248,72 @@
                 return null;
             }
 
-            // Draw polyline through list of stop_ids
+            // Draw polyline through list of stop_ids and add markers
             let currentPolyline = null;
+            let currentMarkersGroup = null; // LayerGroup for markers
             function drawPathThroughStops(stopIds) {
                 const latlngs = [];
-                for (const sid of stopIds) {
+                const markers = [];
+                for (let i = 0; i < stopIds.length; i++) {
+                    const sid = stopIds[i];
                     const s = stopsData.find(x => x.stop_id === sid);
                     if (s && s.stop_lat && s.stop_lon) {
-                        latlngs.push([parseFloat(s.stop_lat), parseFloat(s.stop_lon)]);
+                        const lat = parseFloat(s.stop_lat);
+                        const lon = parseFloat(s.stop_lon);
+                        latlngs.push([lat, lon]);
+
+                        // create a marker or circleMarker for this stop
+                        let markerOptions = { radius: 6, color: '#3388ff', fillColor: '#3388ff', fillOpacity: 1 };
+                        let marker;
+                        // Start stop -> green, end stop -> red, intermediates -> small blue circle
+                        if (i === 0) {
+                            markerOptions.color = 'green';
+                            markerOptions.fillColor = 'green';
+                            markerOptions.radius = 8;
+                            marker = L.circleMarker([lat, lon], markerOptions);
+                        } else if (i === stopIds.length - 1) {
+                            markerOptions.color = 'red';
+                            markerOptions.fillColor = 'red';
+                            markerOptions.radius = 8;
+                            marker = L.circleMarker([lat, lon], markerOptions);
+                        } else {
+                            marker = L.circleMarker([lat, lon], markerOptions);
+                        }
+
+                        // Add a popup showing stop id and name
+                        const name = s.stop_name || '';
+                        marker.bindPopup(`<strong>${sid}</strong><br/>${name}`);
+
+                        // Add a permanent centered tooltip showing the sequential index (1..N)
+                        // This ensures that even if stop IDs are non-consecutive, markers display a simple step number.
+                        try {
+                            marker.bindTooltip(String(i + 1), { permanent: true, direction: 'center', className: 'stop-label' });
+                        } catch (e) {
+                            // ignore if binding tooltip fails for any reason
+                        }
+
+                        markers.push(marker);
                     }
                 }
+
                 if (latlngs.length < 2) return false;
+
+                // Remove previous polyline and markers
                 if (currentPolyline) map.removeLayer(currentPolyline);
+                if (currentMarkersGroup) map.removeLayer(currentMarkersGroup);
+
+                // Add polyline
                 currentPolyline = L.polyline(latlngs, { color: 'blue', weight: 4 }).addTo(map);
+
+                // Create a LayerGroup for markers so they can be removed together
+                currentMarkersGroup = L.layerGroup(markers).addTo(map);
+
+                // Optionally open start and end popups for clarity
+                if (markers.length > 0) {
+                    try { markers[0].openPopup(); } catch (e) { }
+                    if (markers.length > 1) try { markers[markers.length - 1].openPopup(); } catch (e) { }
+                }
+
                 map.fitBounds(currentPolyline.getBounds(), { padding: [20, 20] });
                 return true;
             }
@@ -469,61 +521,7 @@
 
             // Event listeners
             startBtn.addEventListener('click', startProgram);
-            document.getElementById('nativeBtn').addEventListener('click', async function () {
-                // Run the native program via server and draw path after completion
-                terminal.innerHTML = '';
-                addTerminalLine('$ Running native gec2025.exe');
-
-                // Ensure stops loaded
-                addTerminalLine('Loading stops.csv...');
-                const loaded = await loadStopsData();
-                if (!loaded || stopsData.length === 0) {
-                    addTerminalLine('Error: Could not load stops data', true);
-                    return;
-                }
-
-                // Prompt for origin/final
-                const origin = prompt('Enter origin stop name or stop_id:');
-                if (!origin) { addTerminalLine('No origin provided. Cancelled.', true); return; }
-                const final = prompt('Enter final stop name or stop_id:');
-                if (!final) { addTerminalLine('No final provided. Cancelled.', true); return; }
-
-                // Echo prompts into terminal like program would
-                addTerminalPrompt('Enter origin stop name or stop_id: ');
-                if (_lastPromptEchoSpan) { _lastPromptEchoSpan.textContent = origin; _lastPromptEchoSpan = null; }
-                addTerminalLine('Origin Stop:');
-                const oStop = findStop(origin);
-                if (oStop) addTerminalLine(`Found stop: id=${oStop.stop_id} name=${oStop.stop_name}`);
-                else addTerminalLine(`No matching stop found for '${origin}'.`, true);
-
-                addTerminalPrompt('Enter final stop name or stop_id: ');
-                if (_lastPromptEchoSpan) { _lastPromptEchoSpan.textContent = final; _lastPromptEchoSpan = null; }
-                addTerminalLine('Final Stop:');
-                const fStop = findStop(final);
-                if (fStop) addTerminalLine(`Found stop: id=${fStop.stop_id} name=${fStop.stop_name}`);
-                else addTerminalLine(`No matching stop found for '${final}'.`, true);
-
-                // Run native program on server (streams output to terminal)
-                await runNativeProgram([origin, final]);
-
-                // Attempt to draw path
-                const loaded2 = await loadTripsAndStopTimes();
-                if (loaded2) {
-                    const tripIndex = buildTripIndex();
-                    const oid = oStop ? oStop.stop_id : null;
-                    const fid = fStop ? fStop.stop_id : null;
-                    if (oid && fid) {
-                        const found = findTripContaining(oid, fid, tripIndex);
-                        if (found) {
-                            addTerminalLine(`Drawing path for trip ${found.trip_id} through ${found.stopsBetween.length} stops`);
-                            const ok = drawPathThroughStops(found.stopsBetween);
-                            if (!ok) addTerminalLine('Not enough coordinates to draw path', true);
-                        } else {
-                            addTerminalLine('No trip found that contains both stops in order', true);
-                        }
-                    }
-                }
-            });
+            // Native run removed from UI (no native button)
             restartBtn.addEventListener('click', restartProgram);
             submitBtn.addEventListener('click', handleUserInput);
             terminalInput.addEventListener('keypress', function (e) {
