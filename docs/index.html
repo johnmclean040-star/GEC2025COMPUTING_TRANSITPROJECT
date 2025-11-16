@@ -85,19 +85,58 @@
                 terminal.scrollTop = terminal.scrollHeight;
             }
 
-            // Parse CSV data
+            // Robust CSV parser (handles CRLF and quoted fields)
+            // Returns array of objects keyed by header names
             function parseCSV(csvText) {
-                const lines = csvText.split('\n').filter(line => line.trim());
-                const headers = lines[0].split(',').map(h => h.trim());
-                const data = [];
+                // Normalize line endings
+                const text = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-                for (let i = 1; i < lines.length; i++) {
-                    const values = lines[i].split(',').map(v => v.trim());
-                    const row = {};
-                    headers.forEach((header, idx) => {
-                        row[header] = values[idx] || '';
-                    });
-                    data.push(row);
+                // Lightweight RFC4180 parser
+                const rows = [];
+                let cur = '';
+                let row = [];
+                let inQuotes = false;
+                for (let i = 0; i < text.length; i++) {
+                    const ch = text[i];
+                    if (ch === '"') {
+                        if (inQuotes && text[i + 1] === '"') {
+                            // Escaped quote
+                            cur += '"';
+                            i++; // skip next quote
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
+                    } else if (ch === ',' && !inQuotes) {
+                        row.push(cur);
+                        cur = '';
+                    } else if (ch === '\n' && !inQuotes) {
+                        row.push(cur);
+                        cur = '';
+                        rows.push(row);
+                        row = [];
+                    } else {
+                        cur += ch;
+                    }
+                }
+                // push last field/row if any
+                if (cur !== '' || row.length > 0) {
+                    row.push(cur);
+                    rows.push(row);
+                }
+
+                if (rows.length === 0) return [];
+
+                const headers = rows[0].map(h => h.trim());
+                const data = [];
+                for (let r = 1; r < rows.length; r++) {
+                    const values = rows[r];
+                    // skip empty rows
+                    if (values.length === 1 && values[0].trim() === '') continue;
+                    const obj = {};
+                    for (let c = 0; c < headers.length; c++) {
+                        obj[headers[c]] = (values[c] !== undefined) ? values[c].trim() : '';
+                    }
+                    data.push(obj);
                 }
                 return data;
             }
@@ -107,6 +146,18 @@
                 try {
                     const response = await fetch('../csv_files/stops.csv');
                     const csvText = await response.text();
+
+                    // Diagnostics: show raw size and approximate line count
+                    const rawBytes = new Blob([csvText]).size;
+                    const newlineCount = (csvText.match(/\n/g) || []).length;
+                    addTerminalLine(`stops.csv: ${rawBytes} bytes, ~${newlineCount + 1} lines (including header)`);
+
+                    // Preview first/last 2 lines for verification
+                    const previewLines = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+                    addTerminalLine(`Preview first line: ${previewLines[0] || ''}`);
+                    addTerminalLine(`Preview second line: ${previewLines[1] || ''}`);
+                    addTerminalLine(`Preview last line: ${previewLines[previewLines.length - 1] || ''}`);
+
                     stopsData = parseCSV(csvText);
                     return true;
                 } catch (err) {
