@@ -133,6 +133,58 @@ main.simple-layout {
     line-height: 1.5;
 }
 
+/* Terminal input area */
+.terminal-input-area {
+    background: #252526;
+    padding: 12px;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid #3e3e42;
+}
+
+.terminal-input {
+    flex: 1;
+    background: #1e1e1e;
+    color: #00ff00;
+    border: 1px solid #3e3e42;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
+    outline: none;
+}
+
+.terminal-input:focus {
+    border-color: #00ff00;
+    box-shadow: 0 0 4px rgba(0, 255, 0, 0.3);
+}
+
+.terminal-input:disabled {
+    color: #666;
+    cursor: not-allowed;
+}
+
+.btn-submit {
+    background: #1e8449;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-submit:hover:not(:disabled) {
+    background: #145a32;
+}
+
+.btn-submit:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 
 /* Leaflet map styling overrides */
 

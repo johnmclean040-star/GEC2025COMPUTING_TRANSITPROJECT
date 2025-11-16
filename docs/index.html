@@ -33,6 +33,10 @@
                 </div>
             </div>
             <div id="terminal" class="terminal-output"></div>
+            <div class="terminal-input-area">
+                <input type="text" id="terminalInput" class="terminal-input" placeholder="Enter stop name or ID..." />
+                <button id="submitBtn" class="btn-submit">Submit</button>
+            </div>
         </section>
     </main>
 
@@ -64,7 +68,13 @@
             const terminal = document.getElementById('terminal');
             const startBtn = document.getElementById('startBtn');
             const restartBtn = document.getElementById('restartBtn');
+            const terminalInput = document.getElementById('terminalInput');
+            const submitBtn = document.getElementById('submitBtn');
             let isRunning = false;
+            let stopsData = [];
+            let inputState = null; // 'waiting_origin' or 'waiting_final'
+            let originStop = null;
+            let finalStop = null;
 
             // Add text to terminal with scrolling
             function addTerminalLine(text, isError = false) {
@@ -75,47 +85,142 @@
                 terminal.scrollTop = terminal.scrollHeight;
             }
 
-            // Start the C program
+            // Parse CSV data
+            function parseCSV(csvText) {
+                const lines = csvText.split('\n').filter(line => line.trim());
+                const headers = lines[0].split(',').map(h => h.trim());
+                const data = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(',').map(v => v.trim());
+                    const row = {};
+                    headers.forEach((header, idx) => {
+                        row[header] = values[idx] || '';
+                    });
+                    data.push(row);
+                }
+                return data;
+            }
+
+            // Load stops CSV
+            async function loadStopsData() {
+                try {
+                    const response = await fetch('../csv_files/stops.csv');
+                    const csvText = await response.text();
+                    stopsData = parseCSV(csvText);
+                    return true;
+                } catch (err) {
+                    addTerminalLine(`Error loading stops.csv: ${err.message}`, true);
+                    return false;
+                }
+            }
+
+            // Find stop by name or ID
+            function findStop(query) {
+                if (!query) return null;
+
+                const queryLower = query.toLowerCase();
+
+                // Exact match on stop_id
+                let found = stopsData.find(stop => stop.stop_id === query);
+                if (found) return found;
+
+                // Substring match on stop_name (case-insensitive)
+                found = stopsData.find(stop =>
+                    stop.stop_name && stop.stop_name.toLowerCase().includes(queryLower)
+                );
+                return found;
+            }
+
+            // Display stop details
+            function displayStopInfo(label, stop) {
+                addTerminalLine(`\n${label}:`);
+                if (stop) {
+                    addTerminalLine(`  ID: ${stop.stop_id}`);
+                    addTerminalLine(`  Name: ${stop.stop_name}`);
+                    if (stop.stop_lat && stop.stop_lon) {
+                        addTerminalLine(`  Location: ${stop.stop_lat}, ${stop.stop_lon}`);
+                    }
+                } else {
+                    addTerminalLine('  No matching stop found', true);
+                }
+            }
+
+            // Start the program
             async function startProgram() {
                 if (isRunning) return;
 
                 terminal.innerHTML = '';
-                addTerminalLine('$ Starting gec2025 program...\n');
+                addTerminalLine('$ gec2025 - GTFS Stop Lookup Program\n');
                 startBtn.disabled = true;
                 restartBtn.disabled = true;
+                terminalInput.disabled = false;
+                submitBtn.disabled = false;
                 isRunning = true;
+                inputState = 'waiting_origin';
+                originStop = null;
+                finalStop = null;
 
                 try {
-                    // Make request to backend
-                    const response = await fetch('/api/start-program', {
-                        method: 'POST'
-                    });
+                    // Load the stops data
+                    addTerminalLine('Loading stops.csv...');
+                    const loaded = await loadStopsData();
 
-                    if (!response.ok) {
-                        addTerminalLine(`Error: HTTP ${response.status}`, true);
-                        addTerminalLine('Make sure the backend server is running.', true);
+                    if (!loaded || stopsData.length === 0) {
+                        addTerminalLine('Error: Could not load stops data', true);
                         startBtn.disabled = false;
                         restartBtn.disabled = false;
+                        terminalInput.disabled = true;
+                        submitBtn.disabled = true;
                         isRunning = false;
+                        inputState = null;
                         return;
                     }
 
-                    const data = await response.json();
-                    if (data.output) {
-                        addTerminalLine(data.output);
-                    }
-                    if (data.error) {
-                        addTerminalLine(`Error: ${data.error}`, true);
-                    }
-                    addTerminalLine('\n$ Program completed');
+                    addTerminalLine(`Loaded ${stopsData.length} stops\n`);
+                    addTerminalLine('Enter origin stop name or stop_id:');
+                    terminalInput.focus();
                 } catch (err) {
                     addTerminalLine(`Error: ${err.message}`, true);
-                    addTerminalLine('Is the backend server running?', true);
+                    startBtn.disabled = false;
+                    restartBtn.disabled = false;
+                    terminalInput.disabled = true;
+                    submitBtn.disabled = true;
+                    isRunning = false;
+                    inputState = null;
                 }
+            }
 
-                startBtn.disabled = false;
-                restartBtn.disabled = false;
-                isRunning = false;
+            // Handle user input submission
+            function handleUserInput() {
+                const input = terminalInput.value.trim();
+                if (!input) return;
+
+                // Echo the input to terminal
+                addTerminalLine(input);
+                terminalInput.value = '';
+
+                if (inputState === 'waiting_origin') {
+                    originStop = findStop(input);
+                    displayStopInfo('Origin Stop', originStop);
+                    addTerminalLine('\nEnter final stop name or stop_id:');
+                    inputState = 'waiting_final';
+                    terminalInput.focus();
+                } else if (inputState === 'waiting_final') {
+                    finalStop = findStop(input);
+                    displayStopInfo('Final Stop', finalStop);
+
+                    // Program complete
+                    addTerminalLine('\n$ Program completed successfully');
+
+                    // Disable input
+                    terminalInput.disabled = true;
+                    submitBtn.disabled = true;
+                    startBtn.disabled = false;
+                    restartBtn.disabled = false;
+                    isRunning = false;
+                    inputState = null;
+                }
             }
 
             // Restart the program
@@ -126,8 +231,16 @@
             // Event listeners
             startBtn.addEventListener('click', startProgram);
             restartBtn.addEventListener('click', restartProgram);
+            submitBtn.addEventListener('click', handleUserInput);
+            terminalInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') handleUserInput();
+            });
 
+            // Initial state
+            terminalInput.disabled = true;
+            submitBtn.disabled = true;
             addTerminalLine('Ready. Click "Start" to run the GEC2025 C program.');
+            addTerminalLine('This simulates the C program in the browser.');
         });
     </script>
 </body>
