@@ -27,6 +27,7 @@ main {
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
+/* Ensure the map container is positioned so overlays can be absolute inside it */
 #map {
     width: 100%;
     height: 400px;
@@ -35,19 +36,99 @@ main {
     margin-top: 10px;
     /* ensure leaflet tiles fill rounded container on some browsers */
     overflow: hidden;
+    position: relative;
+    z-index: 0;
 }
 
-/* Controls for routes (container used in index.html: #route-controls) */
+/* Lat/Lon overlay inside the map (live coordinates) */
+#latlon.map-coords {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Directions controls (populated from CSV) */
+#directions-controls {
+    background: #fff;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+#directions-controls h3 {
+    margin: 0 0 10px 0;
+    color: #35424a;
+    font-size: 1rem;
+}
+
+#directions-controls label {
+    font-size: 0.9rem;
+    color: #333;
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+#directions-controls select,
+#directions-controls input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+    background: #fff;
+}
+
+#directions-controls button {
+    background: #35424a;
+    color: #fff;
+    border: none;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.12s ease, transform 0.06s ease;
+    margin-right: 8px;
+    margin-bottom: 6px;
+}
+
+#directions-controls button.secondary {
+    background: #e6e6e6;
+    color: #222;
+}
+
+#directionInfo {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: #333;
+    background: #f8f8f8;
+    padding: 10px;
+    border-radius: 6px;
+    border-left: 4px solid #35424a;
+}
+
+/* Controls for routes (container used in index.html: #route-controls)
+   Use a vertical layout so it stacks well with the directions controls */
 #route-controls {
     background: #fff;
     border-radius: 8px;
     padding: 12px;
     margin-top: 12px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-    display: grid;
-    grid-template-columns: 1fr auto;
+    display: flex;
+    flex-direction: column;
     gap: 8px;
-    align-items: center;
+    align-items: stretch;
 }
 
 /* Make the controls stack on small screens */
@@ -57,12 +138,13 @@ main {
     }
 }
 
-/* Form element styling */
+/* Form element styling inside route-controls */
 #route-controls label {
     font-size: 0.9rem;
     color: #333;
     display: block;
     margin-bottom: 4px;
+    font-weight: 600;
 }
 
 #route-controls select,
@@ -86,7 +168,7 @@ main {
     overflow-wrap: normal;
 }
 
-/* Buttons */
+/* Buttons inside route-controls */
 #route-controls button {
     background: #35424a;
     color: #fff;
@@ -96,6 +178,7 @@ main {
     cursor: pointer;
     font-weight: 600;
     transition: background 0.12s ease, transform 0.06s ease;
+    align-self: start;
 }
 
 #route-controls button:hover {
