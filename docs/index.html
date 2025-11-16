@@ -29,6 +29,7 @@
                 <h3>GEC2025 C Program Terminal</h3>
                 <div class="terminal-buttons">
                     <button id="startBtn" class="btn-primary">Start</button>
+                    <button id="nativeBtn" class="btn-primary">Run Native</button>
                     <button id="restartBtn" class="btn-secondary">Restart</button>
                 </div>
             </div>
@@ -306,8 +307,57 @@
                 startProgram();
             }
 
+            // Run the native compiled program via local server
+            async function runNativeProgram(inputLines) {
+                // inputLines should be an array of lines to send as stdin
+                try {
+                    addTerminalLine('\nStarting native execution (server) ...');
+                    const body = { input: inputLines.join('\n') + '\n' };
+                    const resp = await fetch('http://localhost:3000/run', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+
+                    if (!resp.ok && resp.status !== 200) {
+                        addTerminalLine(`Server returned ${resp.status} ${resp.statusText}`, true);
+                        return;
+                    }
+
+                    // Stream response body
+                    const reader = resp.body.getReader();
+                    const decoder = new TextDecoder();
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value);
+                        addTerminalLine(chunk);
+                    }
+                    addTerminalLine('\nNative run complete');
+                } catch (err) {
+                    addTerminalLine(`Error running native program: ${err.message}`, true);
+                }
+            }
+
             // Event listeners
             startBtn.addEventListener('click', startProgram);
+            document.getElementById('nativeBtn').addEventListener('click', async function () {
+                // Prompt for two stops (origin, final) using quick prompts in terminal
+                terminal.innerHTML = '';
+                addTerminalLine('$ Running native gec2025.exe');
+                // Ask user for origin and final via simple prompt() dialogs (quick UX)
+                const origin = prompt('Enter origin stop name or stop_id:');
+                if (!origin) {
+                    addTerminalLine('No origin provided. Cancelled.', true);
+                    return;
+                }
+                const final = prompt('Enter final stop name or stop_id:');
+                if (!final) {
+                    addTerminalLine('No final provided. Cancelled.', true);
+                    return;
+                }
+                await runNativeProgram([origin, final]);
+            });
             restartBtn.addEventListener('click', restartProgram);
             submitBtn.addEventListener('click', handleUserInput);
             terminalInput.addEventListener('keypress', function (e) {
