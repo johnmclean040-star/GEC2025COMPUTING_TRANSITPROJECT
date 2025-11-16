@@ -321,9 +321,8 @@ int find_stop_in_csv(const char* stopsPath, const char* query) {
     return 0;
   }
 
-  // Parse header to find column positions for stop_id, stop_name, stop_lat,
-  // stop_lon
-  int idx_id = -1, idx_name = -1, idx_lat = -1, idx_lon = -1;
+  // Parse header to find column positions for stop_id, stop_name
+  int idx_id = -1, idx_name = -1;
   {
     char* hdr = strdup(line);
     char* tok = strtok(hdr, ",");
@@ -332,8 +331,8 @@ int find_stop_in_csv(const char* stopsPath, const char* query) {
       // Identify each column by header name
       if (strcmp(tok, "stop_id") == 0) idx_id = idx;
       if (strcmp(tok, "stop_name") == 0) idx_name = idx;
-      if (strcmp(tok, "stop_lat") == 0) idx_lat = idx;
-      if (strcmp(tok, "stop_lon") == 0) idx_lon = idx;
+      if (strcmp(tok, "stop_lat") == 0) { /* unused */ };
+      if (strcmp(tok, "stop_lon") == 0) { /* unused */ };
       tok = strtok(NULL, ",");
       idx++;
     }
@@ -376,8 +375,7 @@ int find_stop_in_csv(const char* stopsPath, const char* query) {
     if (idx_name >= 0 && idx_name < fc) {
       char nameLower[512];
       str_to_lower_copy(fields[idx_name], nameLower, sizeof(nameLower));
-      //if (strstr(nameLower, qlower) != NULL) {
-      if (nameLower == qlower) {
+      if (strstr(nameLower, qlower) != NULL) {
         printf("Found stop: id=%s name=%s\n",
                (idx_id >= 0 && idx_id < fc) ? fields[idx_id] : "",
                fields[idx_name]);
@@ -411,12 +409,6 @@ int find_stop_in_csv(const char* stopsPath, const char* query) {
  *   0 on successful completion, error code on failure
  */
 int main() {
-  // Array of CSV files used by this program (for reference)
-  const char* csvFiles[] = {"./csv_files/routes.csv", "./csv_files/shapes.csv",
-                            "./csv_files/stops.csv",
-                            "./csv_files/stop_times.csv",
-                            "./csv_files/trips.csv"};
-
   // Buffers to store user input for origin and final stops
   char origin_input[256];
   char final_input[256];

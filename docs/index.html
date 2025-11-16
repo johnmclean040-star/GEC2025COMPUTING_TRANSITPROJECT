@@ -29,7 +29,6 @@
                 <h3>GEC2025 C Program Terminal</h3>
                 <div class="terminal-buttons">
                     <button id="startBtn" class="btn-primary">Start</button>
-                    <button id="nativeBtn" class="btn-primary">Run Native</button>
                     <button id="restartBtn" class="btn-secondary">Restart</button>
                 </div>
             </div>
@@ -84,6 +83,22 @@
                 if (isError) line.style.color = '#ff6b6b';
                 terminal.appendChild(line);
                 terminal.scrollTop = terminal.scrollHeight;
+            }
+
+            // Add a prompt that will be echoed on the same line when the user
+            // submits their input, to mimic terminal behavior.
+            let _lastPromptEchoSpan = null;
+            function addTerminalPrompt(promptText) {
+                const line = document.createElement('div');
+                const promptSpan = document.createElement('span');
+                promptSpan.textContent = promptText;
+                const echoSpan = document.createElement('span');
+                echoSpan.textContent = '';
+                line.appendChild(promptSpan);
+                line.appendChild(echoSpan);
+                terminal.appendChild(line);
+                terminal.scrollTop = terminal.scrollHeight;
+                _lastPromptEchoSpan = echoSpan;
             }
 
             // Robust CSV parser (handles CRLF and quoted fields)
@@ -193,6 +208,7 @@
 
             // Find stop by name or ID
             function findStop(query) {
+
                 if (!query) return null;
 
                 const queryLower = query.toLowerCase();
@@ -209,16 +225,13 @@
             }
 
             // Display stop details
-            function displayStopInfo(label, stop) {
-                addTerminalLine(`\n${label}:`);
+            function displayStopInfo(label, stop, query) {
+                addTerminalLine('');
+                addTerminalLine(`${label}:`);
                 if (stop) {
-                    addTerminalLine(`  ID: ${stop.stop_id}`);
-                    addTerminalLine(`  Name: ${stop.stop_name}`);
-                    if (stop.stop_lat && stop.stop_lon) {
-                        addTerminalLine(`  Location: ${stop.stop_lat}, ${stop.stop_lon}`);
-                    }
+                    addTerminalLine(`Found stop: id=${stop.stop_id} name=${stop.stop_name}`);
                 } else {
-                    addTerminalLine('  No matching stop found', true);
+                    addTerminalLine(`No matching stop found for '${query}'.`, true);
                 }
             }
 
@@ -257,7 +270,8 @@
                     // Also load and report routes.csv diagnostics
                     const routes = await loadRoutesData();
                     if (routes) addTerminalLine(`Loaded ${routes.length} routes\n`);
-                    addTerminalLine('Enter origin stop name or stop_id:');
+                    // Match C program prompt
+                    addTerminalPrompt('Enter origin stop name or stop_id: ');
                     terminalInput.focus();
                 } catch (err) {
                     addTerminalLine(`Error: ${err.message}`, true);
@@ -275,22 +289,28 @@
                 const input = terminalInput.value.trim();
                 if (!input) return;
 
-                // Echo the input to terminal
-                addTerminalLine(input);
+                // Echo input on the same prompt line (like a terminal)
+                if (_lastPromptEchoSpan) {
+                    _lastPromptEchoSpan.textContent = input;
+                    _lastPromptEchoSpan = null;
+                } else {
+                    addTerminalLine(input);
+                }
                 terminalInput.value = '';
 
                 if (inputState === 'waiting_origin') {
                     originStop = findStop(input);
-                    displayStopInfo('Origin Stop', originStop);
-                    addTerminalLine('\nEnter final stop name or stop_id:');
+                    displayStopInfo('Origin Stop', originStop, input);
+                    addTerminalPrompt('Enter final stop name or stop_id: ');
                     inputState = 'waiting_final';
                     terminalInput.focus();
                 } else if (inputState === 'waiting_final') {
                     finalStop = findStop(input);
-                    displayStopInfo('Final Stop', finalStop);
+                    displayStopInfo('Final Stop', finalStop, input);
 
                     // Program complete
-                    addTerminalLine('\n$ Program completed successfully');
+                    addTerminalLine('');
+                    addTerminalLine('$ Program completed successfully');
 
                     // Disable input
                     terminalInput.disabled = true;
@@ -307,57 +327,10 @@
                 startProgram();
             }
 
-            // Run the native compiled program via local server
-            async function runNativeProgram(inputLines) {
-                // inputLines should be an array of lines to send as stdin
-                try {
-                    addTerminalLine('\nStarting native execution (server) ...');
-                    const body = { input: inputLines.join('\n') + '\n' };
-                    const resp = await fetch('http://localhost:3000/run', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-
-                    if (!resp.ok && resp.status !== 200) {
-                        addTerminalLine(`Server returned ${resp.status} ${resp.statusText}`, true);
-                        return;
-                    }
-
-                    // Stream response body
-                    const reader = resp.body.getReader();
-                    const decoder = new TextDecoder();
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        const chunk = decoder.decode(value);
-                        addTerminalLine(chunk);
-                    }
-                    addTerminalLine('\nNative run complete');
-                } catch (err) {
-                    addTerminalLine(`Error running native program: ${err.message}`, true);
-                }
-            }
+            // (Native runner removed from UI)
 
             // Event listeners
             startBtn.addEventListener('click', startProgram);
-            document.getElementById('nativeBtn').addEventListener('click', async function () {
-                // Prompt for two stops (origin, final) using quick prompts in terminal
-                terminal.innerHTML = '';
-                addTerminalLine('$ Running native gec2025.exe');
-                // Ask user for origin and final via simple prompt() dialogs (quick UX)
-                const origin = prompt('Enter origin stop name or stop_id:');
-                if (!origin) {
-                    addTerminalLine('No origin provided. Cancelled.', true);
-                    return;
-                }
-                const final = prompt('Enter final stop name or stop_id:');
-                if (!final) {
-                    addTerminalLine('No final provided. Cancelled.', true);
-                    return;
-                }
-                await runNativeProgram([origin, final]);
-            });
             restartBtn.addEventListener('click', restartProgram);
             submitBtn.addEventListener('click', handleUserInput);
             terminalInput.addEventListener('keypress', function (e) {
