@@ -1,16 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My C Code Portfolio</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
+
 <body>
     <header>
         <h1>My C Programming Projects</h1>
     </header>
-    
+
     <main>
         <section class="project">
             <h2>Project 1: Calculator</h2>
@@ -25,7 +29,7 @@ int main() {
 }</code></pre>
             <a href="projects/calculator.c" download>Download Source Code</a>
         </section>
-        
+
         <section class="project">
             <h2>Project 2: Linked List</h2>
             <pre><code class="language-c">#include &lt;stdio.h&gt;
@@ -38,5 +42,16 @@ struct Node {
             <a href="projects/linkedlist.c" download>Download Source Code</a>
         </section>
     </main>
+    <section class="project">
+        <h2>Location</h2>
+        <div id="map" style="width: 100%; height: 400px;"></div>
+    </section>
+
+    <script>
+        const map = L.map('map').setView([51.5074, -0.1278], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        L.marker([51.5074, -0.1278]).addTo(map).bindPopup('My Location');
+    </script>
 </body>
+
 </html>
